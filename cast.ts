@@ -1,3 +1,7 @@
+// typescript implementation of https://github.com/derkyjadex/elm-rays/blob/master/Main.elm
+let rayColor = '#cc0000'
+let polygonColor = '#fce94f'
+
 function degrees(degree:number) : number {
   return degree/180*Math.PI;
 }
@@ -6,30 +10,8 @@ class Point {
   constructor(public x : number, public y : number){}  
 }
 
-class EuclidVector {
-  constructor(public start : Point, public end : Point){}  
-  public toVector() : Vector{
-    let p1 = this.start
-    let p2 = this.end
-    let dx = p2.x - p1.x
-    let dy = p2.y - p1.y
-    let length = Math.sqrt(dx*dx+dy*dy)
-    let angle = Math.atan2(dy, dx)
-    return new Vector(length, angle);
-  }
-  public toLine() : Line {
-    return new Line(this.start, this.toVector());
-  }
-}
-
-let origo = new Point(0,0)
-
 class Vector {
-  constructor(public length : number, public angle : number){
-    if(length<0.0){
-      throw new Error("length cannot be negative")
-    }
-  }
+  constructor(public length : number, public angle : number){}
   public asCartesian() : Point {
     let x = this.length * Math.cos(this.angle)
     let y = this.length * Math.sin(this.angle)
@@ -38,6 +20,13 @@ class Vector {
   public adjust(delta:number) : Vector{
     return new Vector(this.length, this.angle + delta);
   }
+  public static pointsToVector(p1:Point, p2:Point) : Vector {
+    let dx = p2.x - p1.x
+    let dy = p2.y - p1.y
+    let length = Math.sqrt(dx*dx+dy*dy)
+    let angle = Math.atan2(dy, dx)
+    return new Vector(length, angle);
+  }  
 }
 
 class Line {
@@ -52,6 +41,9 @@ class Line {
   public norms():Point{
     return new Point(Math.cos(this.vector.angle), Math.sin(this.vector.angle));
   }
+  public static pointsToLine(p1:Point, p2:Point):Line{
+    return new Line(p1, Vector.pointsToVector(p1, p2));  
+  }  
 }
 
 function intersect(r:Line, s:Line) : Line {
@@ -69,15 +61,14 @@ function intersect(r:Line, s:Line) : Line {
 }
 
 function toRays(pos:Point, line:Line) : Line[] {
-  let rayToStart = new EuclidVector(pos, line.position).toLine()
-  let rayToEnd = new EuclidVector(pos, line.end()).toLine()
-  return [rayToStart, rayToEnd]
+  let rayToStart = Line.pointsToLine(pos, line.position)
+  let rayToEnd = Line.pointsToLine(pos, line.end())
+  return [rayToStart.adjust(degrees(0.5)), rayToStart.adjust(degrees(-0.5)),
+          rayToEnd.adjust(degrees(0.5)), rayToEnd.adjust(degrees(-0.5))]
 }
 
 function toRaysWalls(pos:Point, walls:Line[]) : Line[] {
-  let rays = []
-  walls.forEach((w) => rays = rays.concat(toRays(pos, w)))
-  return rays
+  return walls.map((w) => toRays(pos, w)).reduce((r1,r2) => r1.concat(r2))
 }
 
 function clipRay(ray:Line, walls:Line[]) : Line {
@@ -87,14 +78,12 @@ function clipRay(ray:Line, walls:Line[]) : Line {
 }
 
 function clipRays(rays:Line[], walls:Line[]) : Line[] {
-  return rays.map(r => clipRay(r, walls)).filter(r=> r!= null)
+  return rays.map(r => clipRay(r, walls)).filter(r => r != null)
 }
 
-// view
-
 class View{
-  constructor(private ctx : CanvasRenderingContext2D, private walls:Line[], private width:number, private height:number){ 
-    this.renderOrigo()
+  constructor(private ctx : CanvasRenderingContext2D, private walls:Line[],
+              private width:number, private height:number){ 
     this.renderWalls()
   }
   private renderWalls(){
@@ -117,58 +106,43 @@ class View{
     this.ctx.lineCap = 'round'
     this.ctx.stroke()
   }
-  private drawRay(line:Line){
-    this.ctx.setLineDash([5, 15]);
+  private drawTriangles(color:string, a:Line, b:Line){
     this.ctx.beginPath()
-    let p = this.toScreen(line.position)
-    this.ctx.moveTo(p.x, p.y)
-    let end = this.toScreen(line.end())
-    this.ctx.lineTo(end.x, end.y)
-    this.ctx.strokeStyle = 'gray'
-    this.ctx.lineWidth = 1
-    this.ctx.lineCap = 'butt'
-    this.ctx.stroke()
-    this.ctx.setLineDash([]);
-  }  
-  private drawClippedRay(line:Line){
-    this.ctx.beginPath()
-    let p = this.toScreen(line.position)
-    this.ctx.moveTo(p.x, p.y)
-    let end = this.toScreen(line.end())
-    let end2 = new Point(end.x, end.y)
-    this.ctx.lineTo(end2.x, end2.y)
-    this.ctx.strokeStyle = 'black'
-    this.ctx.lineWidth = 2
-    this.ctx.lineCap = 'butt'
-    this.ctx.stroke()
+    this.ctx.lineWidth = 0
+    let p1 = this.toScreen(a.position)
+    this.ctx.moveTo(p1.x, p1.y)
+    let p2 = this.toScreen(a.end())
+    this.ctx.lineTo(p2.x, p2.y)
+    let p3 = this.toScreen(b.end())
+    this.ctx.lineTo(p3.x, p3.y)
+    let p4 = this.toScreen(b.position)
+    this.ctx.lineTo(p4.x, p4.y)
+    this.ctx.fillStyle = color
+    this.ctx.fill()
   }
   private renderRay(ray_x:number, ray_y:number){
     this.ctx.beginPath()
     this.ctx.arc(ray_x, ray_y, 5, 0, 2 * Math.PI)
-    this.ctx.fillStyle = 'red'
+    this.ctx.fillStyle = rayColor
     this.ctx.fill()    
   }
-  private renderOrigo(){
-    this.ctx.beginPath()
-    this.ctx.arc(this.width / 2, this.height / 2, 5, 0, 2 * Math.PI)
-    this.ctx.fillStyle = 'green'
-    this.ctx.fill()    
-  }    
-  public render(ray_x:number, ray_y:number){
-    this.ctx.clearRect(0, 0, this.width, this.height)
-    this.ctx.fillStyle = 'black'    
-    this.ctx.fillText("x: " + ray_x + " y: " + ray_y, 0, 10)
-    this.ctx.fillText("x: " + (ray_x - this.width/2) + " y: " + (this.height/2 - ray_y), 0, 30)    
-      
+  private renderRays(ray_x:number, ray_y:number){
     let ray_pos_screen = new Point(ray_x, ray_y)
     let ray_pos = this.fromScreen(ray_pos_screen)
     let rays = toRaysWalls(ray_pos, walls);
-    rays.forEach(r => this.drawRay(r))
     let clippedRays = clipRays(rays, walls)
-    clippedRays.forEach(r => this.drawClippedRay(r))
-    this.renderWalls()
-    this.renderRay(ray_x, ray_y)
-    this.renderOrigo()
+    clippedRays.sort((x,y) => x.vector.angle - y.vector.angle)
+    for(var i = 0;i<clippedRays.length;i++){
+      let r1 = clippedRays[i]
+      let r2 = clippedRays[(i+1)%clippedRays.length]
+      this.drawTriangles(polygonColor, r1, r2)
+    }    
+  }
+  public render(ray_x:number, ray_y:number){
+    this.ctx.clearRect(0, 0, this.width, this.height)
+    this.renderRays(ray_x, ray_y)
+    this.renderRay(ray_x, ray_y)   
+    this.renderWalls()   
   }
 }
 
