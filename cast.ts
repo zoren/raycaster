@@ -82,9 +82,12 @@ function clipRays(rays:Line[], walls:Line[]) : Line[] {
 }
 
 class View{
-  constructor(private ctx : CanvasRenderingContext2D, private walls:Line[],
-              private width:number, private height:number){ 
-    this.renderWalls()
+  private width:number
+  private height:number
+  constructor(private ctx : CanvasRenderingContext2D, private walls:Line[]){ 
+    this.width = ctx.canvas.width
+    this.height = ctx.canvas.height
+    this.renderWalls()    
   }
   private renderWalls(){
     this.walls.forEach((w) => this.drawLine(w))
@@ -162,12 +165,8 @@ let walls : Line[] = [
 
 function exec() {
     var canvas = <HTMLCanvasElement> document.getElementById("theCanvas");    
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-    document.body.appendChild(canvas);
-    var ctx = canvas.getContext("2d");   
-
-    var view = new View(ctx, walls, window.innerWidth, window.innerHeight);
+    var ctx = canvas.getContext("2d");
+    var view = new View(ctx, walls);
     canvas.onmousemove = (e) => {
       var rect = canvas.getBoundingClientRect();
       view.render(e.clientX - rect.left, e.clientY - rect.top)
