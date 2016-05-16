@@ -84,9 +84,11 @@ function clipRays(rays:Line[], walls:Line[]) : Line[] {
 class View{
   private width:number
   private height:number
-  constructor(private ctx : CanvasRenderingContext2D, private walls:Line[]){ 
+  private walls:Line[]
+  constructor(private ctx : CanvasRenderingContext2D){ 
     this.width = ctx.canvas.width
     this.height = ctx.canvas.height
+    this.walls = []
     this.renderWalls()    
   }
   private renderWalls(){
@@ -95,7 +97,7 @@ class View{
   private toScreen(p:Point):Point{
     return new Point(p.x + this.width / 2, this.height / 2 + p.y);
   }
-  private fromScreen(p:Point):Point{
+  public fromScreen(p:Point):Point{
     return new Point(p.x - this.width / 2, p.y - this.height / 2);
   }
   private drawLine(line:Line){
@@ -132,8 +134,8 @@ class View{
   private renderRays(ray_x:number, ray_y:number){
     let ray_pos_screen = new Point(ray_x, ray_y)
     let ray_pos = this.fromScreen(ray_pos_screen)
-    let rays = toRaysWalls(ray_pos, walls);
-    let clippedRays = clipRays(rays, walls)
+    let rays = toRaysWalls(ray_pos, this.walls);
+    let clippedRays = clipRays(rays, this.walls)
     clippedRays.sort((x,y) => x.vector.angle - y.vector.angle)
     for(var i = 0;i<clippedRays.length;i++){
       let r1 = clippedRays[i]
@@ -144,8 +146,11 @@ class View{
   public render(ray_x:number, ray_y:number){
     this.ctx.clearRect(0, 0, this.width, this.height)
     this.renderRays(ray_x, ray_y)
-    this.renderRay(ray_x, ray_y)   
     this.renderWalls()   
+    this.renderRay(ray_x, ray_y)       
+  }
+  public addWall(wall:Line){
+    this.walls.push(wall)
   }
 }
 
@@ -166,10 +171,23 @@ let walls : Line[] = [
 function exec() {
     var canvas = <HTMLCanvasElement> document.getElementById("theCanvas");    
     var ctx = canvas.getContext("2d");
-    var view = new View(ctx, walls);
+    var view = new View(ctx)
+    walls.forEach(w => view.addWall(w))
+    view.render(100, 100)
     canvas.onmousemove = (e) => {
       var rect = canvas.getBoundingClientRect();
       view.render(e.clientX - rect.left, e.clientY - rect.top)
     }
+    var p : Point = null
+    canvas.onmousedown = (e) => {
+      if(p!=null){
+        let p2 = new Point(e.clientX, e.clientY)
+        let l = Line.pointsToLine(view.fromScreen(p), view.fromScreen(p2))
+        view.addWall(l)
+        p = null
+      }else{
+        p = new Point(e.clientX, e.clientY)   
+      }
+    } 
 }
 exec()
